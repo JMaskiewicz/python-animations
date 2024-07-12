@@ -7,7 +7,7 @@ pygame.init()
 # Constants
 WIDTH, HEIGHT = 600, 800
 FPS = 60
-NUM_OBJECTS = 50  # Number of each type
+NUM_OBJECTS = 10
 MAX_SPEED = 3  # Maximum speed of objects
 
 # Colors
@@ -15,10 +15,8 @@ BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
 # Object Types
-ROCK = 'rock'
-PAPER = 'paper'
-SCISSORS = 'scissors'
-types = [ROCK, PAPER, SCISSORS]
+Ball = 'ball'
+types = [Ball]
 
 # Create Pygame window
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
@@ -26,21 +24,17 @@ pygame.display.set_caption("Rock Paper Scissors Animation")
 
 # Object class
 class RPSObject:
-    def __init__(self, obj_type):
-        self.type = obj_type
-        self.radius = 3
+    def __init__(self, number):
+        self.number = number
+        self.radius = 10
         self.increment_factor = 1.25
         self.x = random.randint(self.radius, WIDTH - self.radius)
         self.y = random.randint(self.radius, HEIGHT - self.radius)
         self.dx = random.uniform(-MAX_SPEED, MAX_SPEED)
         self.dy = random.uniform(-MAX_SPEED, MAX_SPEED)
         self.color = WHITE
-        if self.type == ROCK:
-            self.color = (200, 0, 0)
-        elif self.type == PAPER:
-            self.color = (0, 200, 0)
-        elif self.type == SCISSORS:
-            self.color = (0, 0, 200)
+
+        self.color = (random.randint(0, 255), random.randint(0, 255), random.randint(0, 255))
 
     def move(self):
         # Apply random motion component
@@ -94,35 +88,19 @@ class RPSObject:
         self.dy, other.dy = other.dy, self.dy
 
     def transform(self, other):
-        if self.type == ROCK and other.type == SCISSORS:
-            other.type = ROCK
-            other.color = self.color
-            other.radius *= self.increment_factor
-        elif self.type == SCISSORS and other.type == PAPER:
-            other.type = SCISSORS
-            other.color = self.color
-            other.radius *= self.increment_factor
-        elif self.type == PAPER and other.type == ROCK:
-            other.type = PAPER
-            other.color = self.color
-            other.radius *= self.increment_factor
-        elif self.type == SCISSORS and other.type == ROCK:
-            self.type = ROCK
-            self.color = other.color
-            self.radius *= self.increment_factor
-        elif self.type == PAPER and other.type == SCISSORS:
-            self.type = SCISSORS
-            self.color = other.color
-            self.radius *= self.increment_factor
-        elif self.type == ROCK and other.type == PAPER:
-            self.type = PAPER
-            self.color = other.color
-            self.radius *= self.increment_factor
+        if self.color != other.color:
+            if random.random() < other.radius/(other.radius+self.radius):
+                other.color = self.color
+                other.number = self.number
+                other.radius *= self.increment_factor
+            else:
+                self.color = other.color
+                self.radius *= self.increment_factor
+                self.number = other.number
+
 
 # Initialize objects
-objects = ([RPSObject(ROCK) for _ in range(NUM_OBJECTS)] +
-           [RPSObject(PAPER) for _ in range(NUM_OBJECTS)] +
-           [RPSObject(SCISSORS) for _ in range(NUM_OBJECTS)])
+objects = ([RPSObject(i) for i in range(NUM_OBJECTS)] + [RPSObject(i) for i in range(NUM_OBJECTS)])
 
 # Main loop
 running = True
@@ -146,8 +124,8 @@ while running:
     clock.tick(FPS)
 
     # Check if all objects are of the same type
-    first_type = objects[0].type
-    if all(obj.type == first_type for obj in objects):
+    first_type = objects[0].number
+    if all(obj.number == first_type for obj in objects):
         running = False
 
 pygame.quit()
