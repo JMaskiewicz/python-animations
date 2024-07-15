@@ -4,6 +4,7 @@ import os
 
 # Initialize Pygame
 pygame.init()
+pygame.mixer.init()
 
 # Create Pygame window
 WIDTH, HEIGHT = 600, 800
@@ -14,13 +15,14 @@ pygame.display.set_caption("Tech Company Logos Animation")
 FPS = 60
 NUM_OBJECTS = 10
 MAX_SPEED = 3  # Maximum speed of objects
+MUSIC_PLAY_TIME = 1000  # Play 1 second of music for each collision in milliseconds
 
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
 
 # Load logos
-LOGO_DIR = "logos/tech"
+LOGO_DIR = "tech"
 logos = ["amazon.jpg", "apple.png", "meta.png", "microsoft.jpg", "NVIDIA.jpg", "Tesla.jpg"]
 logo_images = {logo: pygame.image.load(os.path.join(LOGO_DIR, logo)).convert_alpha() for logo in logos}
 
@@ -30,6 +32,11 @@ for logo in logos:
         print(f"Failed to load {logo}")
     else:
         print(f"Loaded {logo}")
+
+# Load music
+music = pygame.mixer.Sound(rf"D:\rower\Freestailo mix.mp3")
+music_length = music.get_length() * 1000  # Convert length to milliseconds
+current_music_pos = 0  # Start at the beginning of the song
 
 def create_circular_mask(radius):
     mask_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
@@ -90,8 +97,15 @@ class RPSObject:
     def check_collision(self, other):
         dist = ((self.x - other.x)**2 + (self.y - other.y)**2)**0.5
         if dist < self.radius + other.radius:
+            self.play_collision_music()  # Play music segment
             self.resolve_collision(other, dist)
             self.transform(other)
+
+    def play_collision_music(self):
+        global current_music_pos
+        # Play a short segment of the music
+        music.play(start=current_music_pos / 1000.0, fade_ms=100)
+        current_music_pos = (current_music_pos + MUSIC_PLAY_TIME) % music_length
 
     def resolve_collision(self, other, dist):
         # Calculate overlap
