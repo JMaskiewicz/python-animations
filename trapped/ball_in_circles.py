@@ -12,8 +12,9 @@ pygame.display.set_caption("Ball with Trailing Effect and Concentric Circles")
 
 # Constants
 FPS = 60
-MAX_SPEED = 3  # Maximum speed of ball
+MAX_SPEED = 5  # Maximum initial speed of ball
 TRAIL_LENGTH = 30  # Number of trail segments
+GRAVITY = 0.2  # Gravity effect
 
 # Colors
 BLACK = (0, 0, 0)
@@ -52,6 +53,7 @@ while running:
             running = False
 
     # Update ball position
+    ball_speed[1] += GRAVITY
     ball_pos[0] += ball_speed[0]
     ball_pos[1] += ball_speed[1]
 
