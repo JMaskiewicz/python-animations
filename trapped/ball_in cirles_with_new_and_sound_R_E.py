@@ -3,6 +3,8 @@ import pygame.midi
 import random
 import math
 import time
+import mido
+import threading
 
 # Initialize Pygame and Pygame MIDI
 pygame.init()
@@ -12,6 +14,21 @@ pygame.midi.init()
 midi_out = pygame.midi.Output(0)
 instrument = 0  # Piano
 midi_out.set_instrument(instrument)
+
+# Load MIDI file
+midi_file = mido.MidiFile(r'C:\Users\jmask\Downloads\rush_e_real.mid')
+
+# Extract notes from MIDI file
+left_hand_notes = []
+right_hand_notes = []
+
+for track in midi_file.tracks:
+    for msg in track:
+        if not msg.is_meta and msg.type == 'note_on':
+            if msg.channel == 0:  # Assuming left hand is on channel 0
+                left_hand_notes.append(msg.note)
+            elif msg.channel == 1:  # Assuming right hand is on channel 1
+                right_hand_notes.append(msg.note)
 
 # Create Pygame window
 WIDTH, HEIGHT = 600, 800
@@ -26,8 +43,8 @@ GRAVITY = 0.2  # Gravity effect
 CIRCLE_SHRINK_RATE = 0.5  # Rate at which circles shrink
 NEW_CIRCLE_INTERVAL = 1  # Initial time interval in seconds to add new circle
 MIN_CIRCLE_RADIUS = 5  # Minimum circle radius before disappearing
-SPEED_INCREASE_FACTOR = 1.025  # Factor to increase speed after each bounce
-CIRCLE_CREATION_ACCELERATION = 0.99  # Factor to decrease interval for circle creation after each bounce
+SPEED_INCREASE_FACTOR = 1.033  # Factor to increase speed after each bounce
+CIRCLE_CREATION_ACCELERATION = 0.985  # Factor to decrease interval for circle creation after each bounce
 
 # Colors
 BLACK = (0, 0, 0)
@@ -39,7 +56,6 @@ TRAIL_COLORS = [(255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 255, 0), (0, 127,
 BALL_RADIUS = 15
 ball_pos = [WIDTH // 2, HEIGHT // 2]
 ball_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
-
 
 # Circle settings
 class Circle:
@@ -54,22 +70,15 @@ class Circle:
     def update(self):
         self.radius -= CIRCLE_SHRINK_RATE
 
-
-circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(300, 50, -50)][
-          :4]  # Initialize with 4 circles
+circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(300, 50, -50)][:4]  # Initialize with 4 circles
 
 # Trail settings
 trail_positions = []
-
-# Note sequences
-left_hand_notes = [57, 55, 53, 52]  # Lower octave for AGFE (left hand)
-right_hand_notes = [69, 72, 74, 76, 79, 81]  # Higher octave for A CDE GA (right hand)
 
 left_hand_index = 0
 right_hand_play_count = 0
 
 NOTE_OFF_EVENT = pygame.USEREVENT + 1
-
 
 def randomize_direction(ball_speed):
     angle = random.uniform(-math.pi / 6, math.pi / 6)  # Random angle between -30 and 30 degrees
@@ -78,33 +87,33 @@ def randomize_direction(ball_speed):
     ball_speed[0] = speed * math.cos(new_angle)
     ball_speed[1] = speed * math.sin(new_angle)
 
-
 def increase_speed(ball_speed):
     ball_speed[0] *= SPEED_INCREASE_FACTOR
     ball_speed[1] *= SPEED_INCREASE_FACTOR
 
+def play_note_thread(note):
+    midi_out.note_on(note, 127)
+    time.sleep(0.1)  # Play the note for 100 ms
+    midi_out.note_off(note, 127)
 
 def play_piano_notes():
     global left_hand_index, right_hand_play_count
 
     # Play right hand note
-    right_note = random.choice(right_hand_notes)
-    midi_out.note_on(right_note, 127)  # Play the note with full velocity
-    pygame.time.set_timer(NOTE_OFF_EVENT, 100, True)  # Schedule note off after 100 ms
+    if right_hand_notes:
+        right_note = random.choice(right_hand_notes)
+        threading.Thread(target=play_note_thread, args=(right_note,)).start()
 
     # Play left hand note every second bounce
     right_hand_play_count += 1
-    if right_hand_play_count % 2 == 0:
+    if right_hand_play_count % 2 == 0 and left_hand_notes:
         left_note = left_hand_notes[left_hand_index]
-        midi_out.note_on(left_note, 127)  # Play the note with full velocity
-        pygame.time.set_timer(NOTE_OFF_EVENT, 100, True)  # Schedule note off after 100 ms
+        threading.Thread(target=play_note_thread, args=(left_note,)).start()
         left_hand_index = (left_hand_index + 1) % len(left_hand_notes)
-
 
 def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
-
 
 # Main game loop
 running = True
@@ -118,9 +127,6 @@ while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
             running = False
-        elif event.type == NOTE_OFF_EVENT:
-            for note in left_hand_notes + right_hand_notes:
-                midi_out.note_off(note, 127)
 
     # Update ball position
     ball_speed[1] += GRAVITY
