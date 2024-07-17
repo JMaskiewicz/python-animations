@@ -41,10 +41,10 @@ MAX_SPEED = 1  # Maximum initial speed of ball
 TRAIL_LENGTH = 30  # Number of trail segments
 GRAVITY = 0.2  # Gravity effect
 CIRCLE_SHRINK_RATE = 0.5  # Rate at which circles shrink
-NEW_CIRCLE_INTERVAL = 1  # Initial time interval in seconds to add new circle
+NEW_CIRCLE_INTERVAL = 0.8  # Initial time interval in seconds to add new circle
 MIN_CIRCLE_RADIUS = 5  # Minimum circle radius before disappearing
-SPEED_INCREASE_FACTOR = 1.033  # Factor to increase speed after each bounce
-CIRCLE_CREATION_ACCELERATION = 0.985  # Factor to decrease interval for circle creation after each bounce
+SPEED_INCREASE_FACTOR = 1.025  # Factor to increase speed after each bounce
+CIRCLE_CREATION_ACCELERATION = 0.999  # Factor to decrease interval for circle creation after each bounce
 
 # Colors
 BLACK = (0, 0, 0)
