@@ -57,6 +57,7 @@ BALL_RADIUS = 15
 ball_pos = [WIDTH // 2, HEIGHT // 2]
 ball_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
 
+
 # Circle settings
 class Circle:
     def __init__(self, radius, color):
@@ -70,6 +71,7 @@ class Circle:
     def update(self):
         self.radius -= CIRCLE_SHRINK_RATE
 
+
 circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(400, 100, -25)]  # More initial circles
 
 # Trail settings
@@ -78,8 +80,12 @@ trail_positions = []
 left_hand_index = 0
 right_hand_play_count = 0
 bounce_count = 0
+game_over = False
+show_end_message = False
+end_message_start_time = None
 
 NOTE_OFF_EVENT = pygame.USEREVENT + 1
+
 
 def randomize_direction(ball_speed):
     angle = random.uniform(-math.pi / 6, math.pi / 6)  # Random angle between -30 and 30 degrees
@@ -88,14 +94,17 @@ def randomize_direction(ball_speed):
     ball_speed[0] = speed * math.cos(new_angle)
     ball_speed[1] = speed * math.sin(new_angle)
 
+
 def increase_speed(ball_speed):
     ball_speed[0] *= SPEED_INCREASE_FACTOR
     ball_speed[1] *= SPEED_INCREASE_FACTOR
+
 
 def play_note_thread(note):
     midi_out.note_on(note, 127)
     time.sleep(0.1)  # Play the note for 100 ms
     midi_out.note_off(note, 127)
+
 
 def play_piano_notes():
     global left_hand_index, right_hand_play_count
@@ -112,12 +121,15 @@ def play_piano_notes():
         threading.Thread(target=play_note_thread, args=(left_note,)).start()
         left_hand_index = (left_hand_index + 1) % len(left_hand_notes)
 
+
 def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
 
+
 # Initialize font
 font = pygame.font.SysFont(None, 48)
+large_font = pygame.font.SysFont(None, 72)
 
 # Main game loop
 running = True
@@ -132,80 +144,108 @@ while running:
         if event.type == pygame.QUIT:
             running = False
 
-    # Update ball position
-    ball_speed[1] += GRAVITY
-    ball_pos[0] += ball_speed[0]
-    ball_pos[1] += ball_speed[1]
+    if not game_over:
+        # Update ball position
+        ball_speed[1] += GRAVITY
+        ball_pos[0] += ball_speed[0]
+        ball_pos[1] += ball_speed[1]
 
-    # Ball collision with walls
-    if ball_pos[0] <= BALL_RADIUS or ball_pos[0] >= WIDTH - BALL_RADIUS:
-        ball_speed[0] = -ball_speed[0]
-        randomize_direction(ball_speed)
-        play_piano_notes()  # Play piano notes on bounce
-        bounce_count += 1
-
-    if ball_pos[1] <= BALL_RADIUS or ball_pos[1] >= HEIGHT - BALL_RADIUS:
-        ball_speed[1] = -ball_speed[1]
-        randomize_direction(ball_speed)
-        play_piano_notes()  # Play piano notes on bounce
-        bounce_count += 1
-
-    # Check collision with circles
-    for circle in circles[:]:
-        dist = math.hypot(ball_pos[0] - WIDTH // 2, ball_pos[1] - HEIGHT // 2)
-        if circle.radius - BALL_RADIUS <= dist <= circle.radius + BALL_RADIUS:
-            normal = [(ball_pos[0] - WIDTH // 2) / dist, (ball_pos[1] - HEIGHT // 2) / dist]
-            ball_speed = reflect_velocity(ball_speed, normal)
-            circles.remove(circle)
-            increase_speed(ball_speed)
-            NEW_CIRCLE_INTERVAL *= CIRCLE_CREATION_ACCELERATION  # Decrease interval for circle creation
+        # Ball collision with walls
+        if ball_pos[0] <= BALL_RADIUS or ball_pos[0] >= WIDTH - BALL_RADIUS:
+            ball_speed[0] = -ball_speed[0]
+            randomize_direction(ball_speed)
             play_piano_notes()  # Play piano notes on bounce
             bounce_count += 1
-            break
 
-    # Update circles
-    for circle in circles:
-        circle.update()
-    circles = [circle for circle in circles if circle.radius > MIN_CIRCLE_RADIUS]
+        if ball_pos[1] <= BALL_RADIUS or ball_pos[1] >= HEIGHT - BALL_RADIUS:
+            ball_speed[1] = -ball_speed[1]
+            randomize_direction(ball_speed)
+            play_piano_notes()  # Play piano notes on bounce
+            bounce_count += 1
 
-    # Add new circle based on current interval if there are circles
-    if circles:
-        current_time = time.time()
-        if current_time - last_circle_add_time >= NEW_CIRCLE_INTERVAL:
-            new_circle = Circle(400, random.choice(CIRCLE_COLORS))  # Smaller new circle
-            circles.append(new_circle)
-            last_circle_add_time = current_time
-    else:
-        if no_circle_time is None:
-            no_circle_time = time.time()
-        elif time.time() - no_circle_time >= 5:
-            running = False
+        # Check collision with circles
+        for circle in circles[:]:
+            dist = math.hypot(ball_pos[0] - WIDTH // 2, ball_pos[1] - HEIGHT // 2)
+            if circle.radius - BALL_RADIUS <= dist <= circle.radius + BALL_RADIUS:
+                normal = [(ball_pos[0] - WIDTH // 2) / dist, (ball_pos[1] - HEIGHT // 2) / dist]
+                ball_speed = reflect_velocity(ball_speed, normal)
+                circles.remove(circle)
+                increase_speed(ball_speed)
+                NEW_CIRCLE_INTERVAL *= CIRCLE_CREATION_ACCELERATION  # Decrease interval for circle creation
+                play_piano_notes()  # Play piano notes on bounce
+                bounce_count += 1
+                break
 
-    # Update trail positions
-    trail_positions.append(tuple(ball_pos))
-    if len(trail_positions) > TRAIL_LENGTH:
-        trail_positions.pop(0)
+        # Update circles
+        for circle in circles:
+            circle.update()
+        circles = [circle for circle in circles if circle.radius > MIN_CIRCLE_RADIUS]
+
+        # Add new circle based on current interval if there are circles
+        if circles:
+            current_time = time.time()
+            if current_time - last_circle_add_time >= NEW_CIRCLE_INTERVAL:
+                new_circle = Circle(400, random.choice(CIRCLE_COLORS))  # Smaller new circle
+                circles.append(new_circle)
+                last_circle_add_time = current_time
+        else:
+            if no_circle_time is None:
+                no_circle_time = time.time()
+            elif time.time() - no_circle_time >= 5:
+                game_over = True
+            else:
+                show_end_message = True
+                if end_message_start_time is None:
+                    end_message_start_time = time.time()
+
+        # Update trail positions
+        trail_positions.append(tuple(ball_pos))
+        if len(trail_positions) > TRAIL_LENGTH:
+            trail_positions.pop(0)
 
     # Draw everything
     screen.fill(BLACK)
 
-    # Draw title and bounce counter
-    title_text = font.render("How many bounces it need to escape?", True, WHITE)
-    bounce_text = font.render(f"BOUNCES: {bounce_count}", True, WHITE)
-    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 50))
-    screen.blit(bounce_text, (WIDTH // 2 - bounce_text.get_width() // 2, 150))
+    if not game_over:
+        # Draw title and bounce counter
+        title_text = font.render("How many bounces it need to escape?", True, WHITE)
+        bounce_text = font.render(f"BOUNCES: {bounce_count}", True, WHITE)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 50))
+        screen.blit(bounce_text, (WIDTH // 2 - bounce_text.get_width() // 2, 150))
 
-    # Draw circles
-    for circle in circles:
-        circle.draw(screen)
+        # Draw circles
+        for circle in circles:
+            circle.draw(screen)
 
-    # Draw trail
-    for i, pos in enumerate(trail_positions):
-        color = TRAIL_COLORS[i % len(TRAIL_COLORS)]
-        pygame.draw.circle(screen, color, pos, BALL_RADIUS)
+        # Draw trail
+        for i, pos in enumerate(trail_positions):
+            color = TRAIL_COLORS[i % len(TRAIL_COLORS)]
+            pygame.draw.circle(screen, color, pos, BALL_RADIUS)
 
-    # Draw ball
-    pygame.draw.circle(screen, WHITE, ball_pos, BALL_RADIUS)
+        # Draw ball
+        pygame.draw.circle(screen, WHITE, ball_pos, BALL_RADIUS)
+
+        # Draw end message if needed
+        if show_end_message:
+            game_over_text1 = large_font.render("LIKE", True, WHITE)
+            game_over_text2 = large_font.render("SUBSCRIBE", True, WHITE)
+            game_over_text3 = large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
+            screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 100))
+            screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2))
+            screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 + 100))
+
+            # Check if the 5-second period is over
+            if time.time() - end_message_start_time >= 5:
+                game_over = True
+    else:
+        # Draw game over message if it hasn't been shown already
+        if not show_end_message:
+            game_over_text1 = large_font.render("LIKE", True, WHITE)
+            game_over_text2 = large_font.render("SUBSCRIBE", True, WHITE)
+            game_over_text3 = large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
+            screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 100))
+            screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2))
+            screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 + 100))
 
     pygame.display.flip()
 
