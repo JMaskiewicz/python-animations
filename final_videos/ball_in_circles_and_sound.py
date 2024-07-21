@@ -5,6 +5,7 @@ import math
 import time
 import mido
 import threading
+import imageio
 
 # Initialize Pygame and Pygame MIDI
 pygame.init()
@@ -57,7 +58,6 @@ BALL_RADIUS = 15
 ball_pos = [WIDTH // 2, HEIGHT // 2]
 ball_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
 
-
 # Circle settings
 class Circle:
     def __init__(self, radius, color):
@@ -70,7 +70,6 @@ class Circle:
 
     def update(self):
         self.radius -= CIRCLE_SHRINK_RATE
-
 
 circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(400, 100, -25)]  # More initial circles
 
@@ -86,7 +85,6 @@ end_message_start_time = None
 
 NOTE_OFF_EVENT = pygame.USEREVENT + 1
 
-
 def randomize_direction(ball_speed):
     angle = random.uniform(-math.pi / 6, math.pi / 6)  # Random angle between -30 and 30 degrees
     speed = math.hypot(ball_speed[0], ball_speed[1])  # Current speed magnitude
@@ -94,17 +92,14 @@ def randomize_direction(ball_speed):
     ball_speed[0] = speed * math.cos(new_angle)
     ball_speed[1] = speed * math.sin(new_angle)
 
-
 def increase_speed(ball_speed):
     ball_speed[0] *= SPEED_INCREASE_FACTOR
     ball_speed[1] *= SPEED_INCREASE_FACTOR
-
 
 def play_note_thread(note):
     midi_out.note_on(note, 127)
     time.sleep(0.1)  # Play the note for 100 ms
     midi_out.note_off(note, 127)
-
 
 def play_piano_notes():
     global left_hand_index, right_hand_play_count
@@ -121,15 +116,16 @@ def play_piano_notes():
         threading.Thread(target=play_note_thread, args=(left_note,)).start()
         left_hand_index = (left_hand_index + 1) % len(left_hand_notes)
 
-
 def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
 
-
 # Initialize font
 font = pygame.font.SysFont(None, 48)
 large_font = pygame.font.SysFont(None, 72)
+
+# Setup video writer
+video_writer = imageio.get_writer(r'C:\Users\jmask\OneDrive\Pulpit\videos\1_ball_in_circles_sound.mp4', fps=FPS)
 
 # Main game loop
 running = True
@@ -247,7 +243,15 @@ while running:
             screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2))
             screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 + 100))
 
+    # Capture the screen for video
+    frame = pygame.surfarray.array3d(screen)
+    frame = frame.transpose([1, 0, 2])  # Pygame uses (width, height, channels), ImageIO uses (height, width, channels)
+    video_writer.append_data(frame)
+
     pygame.display.flip()
+
+# Close the video writer
+video_writer.close()
 
 # Close the MIDI output
 midi_out.close()
