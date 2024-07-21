@@ -31,7 +31,7 @@ for track in midi_file.tracks:
                 right_hand_notes.append(msg.note)
 
 # Create Pygame window
-WIDTH, HEIGHT = 600, 800
+WIDTH, HEIGHT = 800, 1400  # 8:14 aspect ratio
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Ball with Trailing Effect and Dynamic Circles")
 
@@ -70,13 +70,14 @@ class Circle:
     def update(self):
         self.radius -= CIRCLE_SHRINK_RATE
 
-circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(300, 50, -50)][:4]  # Initialize with 4 circles
+circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(400, 100, -25)]  # More initial circles
 
 # Trail settings
 trail_positions = []
 
 left_hand_index = 0
 right_hand_play_count = 0
+bounce_count = 0
 
 NOTE_OFF_EVENT = pygame.USEREVENT + 1
 
@@ -115,6 +116,9 @@ def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
 
+# Initialize font
+font = pygame.font.SysFont(None, 48)
+
 # Main game loop
 running = True
 clock = pygame.time.Clock()
@@ -138,11 +142,13 @@ while running:
         ball_speed[0] = -ball_speed[0]
         randomize_direction(ball_speed)
         play_piano_notes()  # Play piano notes on bounce
+        bounce_count += 1
 
     if ball_pos[1] <= BALL_RADIUS or ball_pos[1] >= HEIGHT - BALL_RADIUS:
         ball_speed[1] = -ball_speed[1]
         randomize_direction(ball_speed)
         play_piano_notes()  # Play piano notes on bounce
+        bounce_count += 1
 
     # Check collision with circles
     for circle in circles[:]:
@@ -154,6 +160,7 @@ while running:
             increase_speed(ball_speed)
             NEW_CIRCLE_INTERVAL *= CIRCLE_CREATION_ACCELERATION  # Decrease interval for circle creation
             play_piano_notes()  # Play piano notes on bounce
+            bounce_count += 1
             break
 
     # Update circles
@@ -165,7 +172,7 @@ while running:
     if circles:
         current_time = time.time()
         if current_time - last_circle_add_time >= NEW_CIRCLE_INTERVAL:
-            new_circle = Circle(300, random.choice(CIRCLE_COLORS))
+            new_circle = Circle(400, random.choice(CIRCLE_COLORS))  # Smaller new circle
             circles.append(new_circle)
             last_circle_add_time = current_time
     else:
@@ -181,6 +188,12 @@ while running:
 
     # Draw everything
     screen.fill(BLACK)
+
+    # Draw title and bounce counter
+    title_text = font.render("How many bounces it need to escape?", True, WHITE)
+    bounce_text = font.render(f"BOUNCES: {bounce_count}", True, WHITE)
+    screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 50))
+    screen.blit(bounce_text, (WIDTH // 2 - bounce_text.get_width() // 2, 150))
 
     # Draw circles
     for circle in circles:
