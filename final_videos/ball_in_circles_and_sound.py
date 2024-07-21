@@ -32,7 +32,7 @@ for track in midi_file.tracks:
                 right_hand_notes.append(msg.note)
 
 # Create Pygame window
-WIDTH, HEIGHT = 800, 1400  # 8:14 aspect ratio
+WIDTH, HEIGHT = 800, 1408  # Adjusted to be divisible by 16
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
 pygame.display.set_caption("Ball with Trailing Effect and Dynamic Circles")
 
@@ -58,6 +58,7 @@ BALL_RADIUS = 15
 ball_pos = [WIDTH // 2, HEIGHT // 2]
 ball_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
 
+
 # Circle settings
 class Circle:
     def __init__(self, radius, color):
@@ -70,6 +71,7 @@ class Circle:
 
     def update(self):
         self.radius -= CIRCLE_SHRINK_RATE
+
 
 circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(400, 100, -25)]  # More initial circles
 
@@ -85,6 +87,7 @@ end_message_start_time = None
 
 NOTE_OFF_EVENT = pygame.USEREVENT + 1
 
+
 def randomize_direction(ball_speed):
     angle = random.uniform(-math.pi / 6, math.pi / 6)  # Random angle between -30 and 30 degrees
     speed = math.hypot(ball_speed[0], ball_speed[1])  # Current speed magnitude
@@ -92,14 +95,17 @@ def randomize_direction(ball_speed):
     ball_speed[0] = speed * math.cos(new_angle)
     ball_speed[1] = speed * math.sin(new_angle)
 
+
 def increase_speed(ball_speed):
     ball_speed[0] *= SPEED_INCREASE_FACTOR
     ball_speed[1] *= SPEED_INCREASE_FACTOR
+
 
 def play_note_thread(note):
     midi_out.note_on(note, 127)
     time.sleep(0.1)  # Play the note for 100 ms
     midi_out.note_off(note, 127)
+
 
 def play_piano_notes():
     global left_hand_index, right_hand_play_count
@@ -116,9 +122,11 @@ def play_piano_notes():
         threading.Thread(target=play_note_thread, args=(left_note,)).start()
         left_hand_index = (left_hand_index + 1) % len(left_hand_notes)
 
+
 def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
+
 
 # Initialize font
 font = pygame.font.SysFont(None, 48)
@@ -234,14 +242,7 @@ while running:
             if time.time() - end_message_start_time >= 5:
                 game_over = True
     else:
-        # Draw game over message if it hasn't been shown already
-        if not show_end_message:
-            game_over_text1 = large_font.render("LIKE", True, WHITE)
-            game_over_text2 = large_font.render("SUBSCRIBE", True, WHITE)
-            game_over_text3 = large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
-            screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 100))
-            screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2))
-            screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 + 100))
+        running = False
 
     # Capture the screen for video
     frame = pygame.surfarray.array3d(screen)
@@ -257,3 +258,5 @@ video_writer.close()
 midi_out.close()
 pygame.midi.quit()
 pygame.quit()
+
+print("Video saved successfully!")
