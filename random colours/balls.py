@@ -5,7 +5,7 @@ import random
 pygame.init()
 
 # Constants
-WIDTH, HEIGHT = 600, 800
+WIDTH, HEIGHT = 720, 1280
 FPS = 60
 NUM_OBJECTS = 10
 MAX_SPEED = 3  # Maximum speed of objects
