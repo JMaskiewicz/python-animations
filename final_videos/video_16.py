@@ -177,7 +177,7 @@ no_line_time = None
 trail_length = TRAIL_LENGTH  # Initial trail length
 
 line_respawn_counter = 0  # Counter for line respawn timing
-y=0
+y = 0
 
 # Constants for speed bonus
 UPWARD_SPEED_BONUS_MULTIPLIER = 1.05  # Adjust this value for desired upward speed increase

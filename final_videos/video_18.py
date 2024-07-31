@@ -13,7 +13,7 @@ import os
 from tqdm import tqdm
 
 # Video number
-number = 17
+number = 18
 
 # Directory path
 video_dir = rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}'
@@ -52,33 +52,55 @@ pygame.display.set_caption("Competition Between Balls")
 
 # Constants
 FPS = 60
-MAX_SPEED = 7  # Maximum initial speed of balls
-TRAIL_LENGTH = 3  # Number of trail segments
-GRAVITY = 0.005  # Gravity effect
+MAX_SPEED = 10  # Maximum initial speed of balls
+TRAIL_LENGTH = 5  # Number of trail segments
+GRAVITY = 0.02  # Gravity effect
 SPEED_INCREASE_FACTOR = 1  # Factor to increase speed after each bounce
-GREEN_MAX_COUNT = 121
-YELLOW_MAX_COUNT = 121
-WHITE_BALL_SPAWN_INTERVAL = 2  # Initial interval in seconds to spawn new white balls
+BLUE_MAX_COUNT = 270
+RED_MAX_COUNT = 270
+COOLDOWN_TIME = 1  # Cooldown time in seconds
+WHITE_BALL_SPAWN_INTERVAL = 1  # Initial interval in seconds to spawn new white balls
+SIZE_INCREASE = 1.005  # Size increase upon collision
 
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-GREEN = (0, 255, 0)
-YELLOW = (255, 255, 0)
-GREEN_TRAIL = (0, 255, 0)
-YELLOW_TRAIL = (255, 255, 0)
+BLUE_TRAIL = (0, 0, 255)
+RED_TRAIL = (255, 0, 0)
 
 # Ball settings
-BALL_RADIUS = 15
-WHITE_BALL_RADIUS = 15
+BALL_RADIUS = 10  # Increased size for better image fit
+WHITE_BALL_RADIUS = 10
+
+# Load Trump and Biden images
+trump_img = pygame.image.load(rf'C:\Users\jmask\Downloads\Donald_Trump_official_portrait.jpg')
+biden_img = pygame.image.load(rf'C:\Users\jmask\Downloads\Joe_Biden_presidential_portrait.jpg')
+
+
+def create_circle_surface(image, radius):
+    # Scale the image to the required radius
+    scaled_image = pygame.transform.scale(image, (radius * 2, radius * 2))
+
+    # Create a mask for the circular area
+    mask = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+    pygame.draw.circle(mask, (255, 255, 255, 255), (radius, radius), radius)
+
+    # Apply the mask to the image
+    circle_surface = pygame.Surface((radius * 2, radius * 2), pygame.SRCALPHA)
+    circle_surface.blit(scaled_image, (0, 0))
+    circle_surface.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+
+    return circle_surface
+
 
 class Ball:
-    def __init__(self, color, trail_color, position=None, radius=BALL_RADIUS):
-        self.color = color
+    def __init__(self, image, trail_color, position=None, radius=BALL_RADIUS):
+        self.image = image
         self.trail_color = trail_color
         self.radius = radius
         if position is None:
-            self.position = [random.randint(self.radius, WIDTH - self.radius), random.randint(self.radius, HEIGHT - self.radius)]
+            self.position = [random.randint(self.radius, WIDTH - self.radius),
+                             random.randint(self.radius, HEIGHT - self.radius)]
         else:
             self.position = position
         self.speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
@@ -86,21 +108,40 @@ class Ball:
         self.last_collision_time = time.time()
 
     def update(self):
-        if self.color != WHITE:
-            self.speed[1] += GRAVITY
-            self.position[0] += self.speed[0]
-            self.position[1] += self.speed[1]
+        self.speed[1] += GRAVITY
+        self.position[0] += self.speed[0]
+        self.position[1] += self.speed[1]
 
-            # Ball collision with walls
-            if self.position[0] <= self.radius or self.position[0] >= WIDTH - self.radius:
-                self.speed[0] = -self.speed[0]
-            if self.position[1] <= self.radius or self.position[1] >= HEIGHT - self.radius:
-                self.speed[1] = -self.speed[1]
+        # Ball collision with walls
+        if self.position[0] <= self.radius or self.position[0] >= WIDTH - self.radius:
+            self.speed[0] = -self.speed[0]
+        if self.position[1] <= self.radius or self.position[1] >= HEIGHT - self.radius:
+            self.speed[1] = -self.speed[1]
 
-            # Update trail positions
-            self.trail.append(tuple(self.position))
-            if len(self.trail) > TRAIL_LENGTH:
-                self.trail.pop(0)
+        # Update trail positions
+        self.trail.append(tuple(self.position))
+        if len(self.trail) > TRAIL_LENGTH:
+            self.trail.pop(0)
+
+    def draw(self, screen):
+        for pos in self.trail:
+            pygame.draw.circle(screen, self.trail_color, pos, self.radius)
+        if self.image:
+            circle_image = create_circle_surface(self.image, self.radius)
+            img_rect = circle_image.get_rect(center=(self.position[0], self.position[1]))
+            screen.blit(circle_image, img_rect.topleft)
+        else:
+            pygame.draw.circle(screen, WHITE, self.position, self.radius)
+
+
+class WhiteBall(Ball):
+    def __init__(self, position=None, radius=WHITE_BALL_RADIUS):
+        super().__init__(None, WHITE, position, radius)
+        self.speed = [0, 0]  # White balls do not move
+
+    def update(self):
+        pass  # Override the update method to prevent movement
+
 
 def play_note_thread(note, duration=0.1):
     midi_out.note_on(note, 127)
@@ -109,6 +150,7 @@ def play_note_thread(note, duration=0.1):
         audio_segments.append((note_sound, time.time()))  # Append note sound and the current time
     time.sleep(duration)  # Play the note for 100 ms
     midi_out.note_off(note, 127)
+
 
 def play_piano_notes():
     # Play right hand note
@@ -121,9 +163,23 @@ def play_piano_notes():
         left_note = random.choice(left_hand_notes)
         threading.Thread(target=play_note_thread, args=(left_note,)).start()
 
+
+# Load Trump and Biden sounds
+trump_sound = pygame.mixer.Sound(r'C:\Users\jmask\Downloads\donald-trump-china-made-with-Voicemod.mp3')
+biden_sound = pygame.mixer.Sound(r'C:\Users\jmask\Downloads\biden-skill-issue-made-with-Voicemod.mp3')
+
+# Modify the check_collision function to include sound playing
 def check_collision(ball1, ball2):
     dist = math.hypot(ball1.position[0] - ball2.position[0], ball1.position[1] - ball2.position[1])
-    return dist <= (ball1.radius + ball2.radius)
+    if dist <= (ball1.radius + ball2.radius):
+        if ball1.image == trump_img or ball2.image == trump_img:
+            trump_sound.play()
+        if ball1.image == biden_img or ball2.image == biden_img:
+            biden_sound.play()
+        return True
+    return False
+
+
 
 def resolve_collision(ball1, ball2):
     dx = ball1.position[0] - ball2.position[0]
@@ -155,12 +211,18 @@ def resolve_collision(ball1, ball2):
     ball2.speed[0] += impulse * ball1.radius * nx
     ball2.speed[1] += impulse * ball1.radius * ny
 
+    # Increase the size of the balls upon collision
+    ball1.radius *= SIZE_INCREASE
+    ball2.radius *= SIZE_INCREASE
+
+
 # Initialize font
 font = pygame.font.SysFont(None, 48)
-large_font = pygame.font.SysFont(None, 64)
+large_font = pygame.font.SysFont(None, 58)
 
 # Setup video writer
-video_writer = imageio.get_writer(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition.mp4', fps=FPS)
+video_writer = imageio.get_writer(
+    rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition.mp4', fps=FPS)
 
 # Main game loop
 running = True
@@ -169,29 +231,28 @@ start_time = time.time()
 audio_segments = []
 audio_segments_lock = threading.Lock()
 
-green_ball_count = 1
-yellow_ball_count = 1
+blue_ball_count = 1
+red_ball_count = 1
 game_over = False
 show_end_message = False
 end_message_start_time = None
 
-green_balls = [Ball(GREEN, GREEN_TRAIL)]
-yellow_balls = [Ball(YELLOW, YELLOW_TRAIL)]
-white_balls = [Ball(WHITE, WHITE, position=[WIDTH // 2, HEIGHT // 2], radius=WHITE_BALL_RADIUS)]
+blue_balls = [Ball(biden_img, BLUE_TRAIL)]  # Changed to Biden with blue trail
+red_balls = [Ball(trump_img, RED_TRAIL)]  # Changed to Trump with red trail
+white_balls = [WhiteBall(position=[WIDTH // 2, HEIGHT // 2])]
+
 
 def draw_counter(surface, color, position, text):
     padding = 10
-    rect_width = 200  # Increased width for the rectangle
-    rect_height = 60  # Increased height for the rectangle
-    rect = pygame.Rect(position[0], position[1], rect_width, rect_height)
+    rect = pygame.Rect(position[0], position[1], 200, 50)
     pygame.draw.rect(surface, color, rect, border_radius=15)
     pygame.draw.rect(surface, BLACK, rect, 2, border_radius=15)
     text_surf = font.render(text, True, BLACK)
-    text_rect = text_surf.get_rect(center=rect.center)
-    surface.blit(text_surf, text_rect)
+    surface.blit(text_surf, (position[0] + padding, position[1] + padding))
+
 
 helping = 0
-last_green_ball_spawn_time = time.time()
+last_blue_ball_spawn_time = time.time()
 last_white_ball_spawn_time = time.time()
 current_white_ball_interval = WHITE_BALL_SPAWN_INTERVAL
 
@@ -203,70 +264,72 @@ while running:
             running = False
 
     # Check for game end
-    if (green_ball_count >= GREEN_MAX_COUNT or yellow_ball_count >= YELLOW_MAX_COUNT) and helping == 0:
+    if (blue_ball_count >= BLUE_MAX_COUNT or red_ball_count >= RED_MAX_COUNT) and helping == 0:
         helping = 1
         show_end_message = True
         end_message_start_time = time.time()
 
     if not game_over:
         # Update ball position
-        for ball in green_balls:
+        for ball in blue_balls:
             ball.update()
-        for ball in yellow_balls:
+        for ball in red_balls:
             ball.update()
         for ball in white_balls:
             ball.update()
 
         # Check for collisions with the white balls
-        new_green_balls = []
-        new_yellow_balls = []
+        blue_balls_to_increase = []
+        red_balls_to_increase = []
+        white_balls_to_remove = []
 
-        for ball in green_balls:
+        for ball in blue_balls:
             for white_ball in white_balls:
                 if check_collision(ball, white_ball):
                     if not show_end_message:
-                        resolve_collision(ball, white_ball)
-                        new_green_balls.append(Ball(GREEN, GREEN_TRAIL, position=ball.position[:]))
-                        green_ball_count += 1
-                        white_balls.remove(white_ball)  # Remove white ball upon collision
+                        ball.radius += SIZE_INCREASE
+                        white_balls_to_remove.append(white_ball)  # Mark white ball for removal
                         play_piano_notes()
                         ball.last_collision_time = time.time()
+                        blue_ball_count += 1  # Update counter for blue balls
 
-        for ball in yellow_balls:
+        for ball in red_balls:
             for white_ball in white_balls:
                 if check_collision(ball, white_ball):
                     if not show_end_message:
-                        resolve_collision(ball, white_ball)
-                        new_yellow_balls.append(Ball(YELLOW, YELLOW_TRAIL, position=ball.position[:]))
-                        yellow_ball_count += 1
-                        white_balls.remove(white_ball)  # Remove white ball upon collision
+                        ball.radius += SIZE_INCREASE
+                        white_balls_to_remove.append(white_ball)  # Mark white ball for removal
                         play_piano_notes()
                         ball.last_collision_time = time.time()
+                        red_ball_count += 1  # Update counter for red balls
+
+        # Remove white balls that have been eaten
+        for white_ball in white_balls_to_remove:
+            white_balls.remove(white_ball)
 
         # Check for collisions between balls
-        all_balls = green_balls + yellow_balls + white_balls
+        all_balls = blue_balls + red_balls
         for i in range(len(all_balls)):
             for j in range(i + 1, len(all_balls)):
                 if check_collision(all_balls[i], all_balls[j]):
                     resolve_collision(all_balls[i], all_balls[j])
 
-        green_balls.extend(new_green_balls)
-        yellow_balls.extend(new_yellow_balls)
-
-        # Spawn new white ball at decreasing intervals
+        # Spawn new white ball at random positions
         if time.time() - last_white_ball_spawn_time >= current_white_ball_interval and show_end_message is False:
-            white_balls.append(Ball(WHITE, WHITE))
+            white_balls.append(WhiteBall(position=[random.randint(WHITE_BALL_RADIUS, WIDTH - WHITE_BALL_RADIUS),
+                                                   random.randint(WHITE_BALL_RADIUS, HEIGHT - WHITE_BALL_RADIUS)]))
             last_white_ball_spawn_time = time.time()
-            current_white_ball_interval *= 0.92
+            if current_white_ball_interval > 0.05:
+                current_white_ball_interval *= 0.945
 
         # Draw everything
         screen.fill(BLACK)
 
         # Draw trails
-        for ball in green_balls:
+        for ball in blue_balls:
             for pos in ball.trail:
                 pygame.draw.circle(screen, ball.trail_color, pos, ball.radius)
-        for ball in yellow_balls:
+        for ball in red_balls:
             for pos in ball.trail:
                 pygame.draw.circle(screen, ball.trail_color, pos, ball.radius)
         for ball in white_balls:
@@ -274,20 +337,20 @@ while running:
                 pygame.draw.circle(screen, ball.trail_color, pos, ball.radius)
 
         # Draw balls
-        for ball in green_balls:
-            pygame.draw.circle(screen, ball.color, ball.position, ball.radius)
-        for ball in yellow_balls:
-            pygame.draw.circle(screen, ball.color, ball.position, ball.radius)
+        for ball in blue_balls:
+            ball.draw(screen)
+        for ball in red_balls:
+            ball.draw(screen)
         for ball in white_balls:
-            pygame.draw.circle(screen, ball.color, ball.position, ball.radius)
+            pygame.draw.circle(screen, WHITE, ball.position, ball.radius)
 
         # Draw title
-        title_text = large_font.render("Ball Competition", True, WHITE)
+        title_text = large_font.render("WHO WILL BE THE US PRESIDENT?", True, WHITE)
         screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 150))
 
         # Draw counters
-        draw_counter(screen, GREEN, (50, 250), f"GREEN: {green_ball_count}")
-        draw_counter(screen, YELLOW, (WIDTH - 250, 250), f"YELLOW: {yellow_ball_count}")
+        draw_counter(screen, BLUE_TRAIL, (50, 250), f"BIDEN: {blue_ball_count}")
+        draw_counter(screen, RED_TRAIL, (WIDTH - 220, 250), f"TRUMP: {red_ball_count}")
 
         if show_end_message:
             game_over_text1 = large_font.render("LIKE", True, WHITE)
@@ -299,11 +362,23 @@ while running:
             screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 + 50))
             screen.blit(game_over_text4, (WIDTH // 2 - game_over_text4.get_width() // 2, HEIGHT // 2 + 150))
 
+            # Determine the winner and set the color accordingly
+            if blue_ball_count > red_ball_count:
+                winner = "BIDEN WINS"
+                winner_color = (0, 0, 255)  # Blue color
+            else:
+                winner = "TRUMP WINS"
+                winner_color = (255, 0, 0)  # Red color
+
+            winner_text = large_font.render(winner, True, winner_color)
+            screen.blit(winner_text, (WIDTH // 2 - winner_text.get_width() // 2, HEIGHT // 2 + 250))
+
             # Check if the 5-second period is over
             if time.time() - end_message_start_time >= 5:
                 print("Game over!")
                 game_over = True
                 running = False
+
 
     else:
         running = False
@@ -333,7 +408,8 @@ for segment, timestamp in tqdm(audio_segments):
 final_audio = final_audio[:int(game_duration * 1000)]
 
 # Save the audio to a file
-final_audio.export(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition_sound.mp3', format="mp3")
+final_audio.export(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition_sound.mp3',
+                   format="mp3")
 
 # Close the MIDI output
 midi_out.close()
@@ -344,6 +420,7 @@ pygame.quit()
 video_clip = VideoFileClip(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition.mp4')
 audio_clip = AudioFileClip(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_ball_competition_sound.mp3')
 final_clip = video_clip.set_audio(audio_clip)
-final_clip.write_videofile(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_final_output.mp4', codec="libx264")
+final_clip.write_videofile(rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}\{number}_final_output.mp4',
+                           codec='libx264')
 
 print("Video with sound saved successfully!")
