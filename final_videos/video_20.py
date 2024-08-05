@@ -1,0 +1,225 @@
+import pygame
+import random
+import math
+import time
+import imageio
+from pydub import AudioSegment
+from moviepy.editor import VideoFileClip, AudioFileClip
+import os
+import colorsys
+import io
+
+# Video number
+number = 20
+
+# Directory path
+video_dir = rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}'
+if not os.path.exists(video_dir):
+    os.makedirs(video_dir)
+
+# Load MP3 file
+music_path = r'C:\Users\jmask\Downloads\rush-e-piano-made-with-Voicemod.mp3'
+music = AudioSegment.from_mp3(music_path)
+
+# Initialize Pygame
+pygame.init()
+pygame.mixer.init()
+
+# Create Pygame window
+WIDTH, HEIGHT = 720, 1280
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Ball with Trailing Effect and Dynamic Polygon")
+
+# Constants
+FPS, MAX_SPEED, TRAIL_LENGTH, GRAVITY, ROTATION_SPEED = 60, 8, 20, 0.025, 0.01
+BLACK, WHITE = (0, 0, 0), (255, 255, 255)
+
+# Ball settings
+BALL_RADIUS = 15
+
+class Ball:
+    def __init__(self, pos, speed):
+        self.pos = pos
+        self.speed = speed
+        self.trail_positions = [pos[:] for _ in range(TRAIL_LENGTH)]  # Initialize with fixed length
+
+    def move(self):
+        self.speed[1] += GRAVITY
+        self.pos = [self.pos[0] + self.speed[0], self.pos[1] + self.speed[1]]
+        self.trail_positions.append(self.pos[:])  # Add a copy of the current position
+        if len(self.trail_positions) > TRAIL_LENGTH:
+            self.trail_positions.pop(0)
+
+    def draw(self, screen):
+        for i, pos in enumerate(self.trail_positions):
+            hue_offset = (i * 0.05) % 1.0  # Adjust the offset to create the smooth rainbow effect
+            hue = (polygon.hue + hue_offset) % 1.0
+            rgb_color = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
+            color = (int(rgb_color[0] * 255), int(rgb_color[1] * 255), int(rgb_color[2] * 255))
+            pygame.draw.circle(screen, color, pos, BALL_RADIUS)
+
+    def bounce(self):
+        self.speed[0] = -self.speed[0]
+        self.speed = randomize_direction(self.speed)
+
+class Polygon:
+    def __init__(self, radius, num_sides=20):
+        self.radius, self.num_sides = radius, num_sides
+        self.holes = [False] * num_sides
+        self.rotation_angle, self.hue = 0, 0
+
+    def draw(self, screen):
+        center = (WIDTH // 2, HEIGHT // 2)
+        angle_step = 2 * math.pi / self.num_sides
+        points = [(center[0] + self.radius * math.cos(i * angle_step + self.rotation_angle),
+                   center[1] + self.radius * math.sin(i * angle_step + self.rotation_angle)) for i in
+                  range(self.num_sides)]
+        for i in range(self.num_sides):
+            if not self.holes[i]:
+                start, end = points[i], points[(i + 1) % self.num_sides]
+                self.hue = (self.hue + 0.000025) % 1.0
+                rgb_color = colorsys.hsv_to_rgb(self.hue, 1.0, 1.0)
+                color = (int(rgb_color[0] * 255), int(rgb_color[1] * 255), int(rgb_color[2] * 255))
+                pygame.draw.line(screen, color, start, end, 10)
+
+    def get_edges(self):
+        center = (WIDTH // 2, HEIGHT // 2)
+        angle_step = 2 * math.pi / self.num_sides
+        points = [(center[0] + self.radius * math.cos(i * angle_step + self.rotation_angle),
+                   center[1] + self.radius * math.sin(i * angle_step + self.rotation_angle)) for i in
+                  range(self.num_sides)]
+        return [(points[i], points[(i + 1) % len(points)]) for i in range(len(points))]
+
+    def contains_point(self, point):
+        return math.hypot(point[0] - WIDTH // 2, point[1] - HEIGHT // 2) <= self.radius
+
+polygon = Polygon(350)
+balls = [
+    Ball([WIDTH // 2, HEIGHT // 2], [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])])]
+bounce_count = 0
+game_over, show_end_message, end_message_start_time = False, False, None
+audio_segments = []
+
+def randomize_direction(ball_speed):
+    angle = random.uniform(-math.pi / 6, math.pi / 6)
+    speed = math.hypot(*ball_speed)
+    new_angle = math.atan2(ball_speed[1], ball_speed[0]) + angle
+    return [speed * math.cos(new_angle), speed * math.sin(new_angle)]
+
+def play_music_segment(start_time, duration=0.15):
+    segment = music[start_time*1000:start_time*1000 + duration*1000]
+    audio_segments.append((segment, time.time()))
+
+    with io.BytesIO() as f:
+        segment.export(f, format="wav")
+        f.seek(0)
+        pygame.mixer.Sound(f).play()
+
+def reflect_velocity(velocity, normal):
+    dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
+    return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
+
+def enhanced_collision_detection(ball_pos, edge):
+    line_start, line_end = edge
+    line_vec = [line_end[0] - line_start[0], line_end[1] - line_start[1]]
+    ball_vec = [ball_pos[0] - line_start[0], ball_pos[1] - line_start[1]]
+    line_len = math.hypot(*line_vec)
+    line_unitvec = [line_vec[0] / line_len, line_vec[1] / line_len]
+    proj_len = ball_vec[0] * line_unitvec[0] + ball_vec[1] * line_unitvec[1]
+    closest_point = [line_start[0] + proj_len * line_unitvec[0], line_start[1] + proj_len * line_unitvec[1]]
+    if proj_len < 0 or proj_len > line_len:
+        return False
+    if not point_on_segment(closest_point[0], closest_point[1], line_start[0], line_start[1], line_end[0], line_end[1]):
+        return False
+    return math.hypot(closest_point[0] - ball_pos[0], closest_point[1] - ball_pos[1]) <= BALL_RADIUS
+
+font, large_font = pygame.font.SysFont(None, 48), pygame.font.SysFont(None, 64)
+video_writer = imageio.get_writer(rf'{video_dir}\{number}_ball_in_lines_sound.mp4', fps=FPS)
+running, clock, start_time = True, pygame.time.Clock(), time.time()
+last_ball_spawn_time = start_time
+
+def point_on_segment(px, py, ax, ay, bx, by):
+    # Calculate the cross product to determine if point p is on line segment ab
+    cross_product = (py - ay) * (bx - ax) - (px - ax) * (by - ay)
+    if abs(cross_product) > 1e-6:
+        return False  # Not on the line
+
+    # Check if the point is in the bounding rectangle
+    dot_product = (px - ax) * (bx - ax) + (py - ay) * (by - ay)
+    if dot_product < 0:
+        return False  # Beyond point a
+
+    squared_length_ba = (bx - ax) * (bx - ax) + (by - ay) * (by - ay)
+    if dot_product > squared_length_ba:
+        return False  # Beyond point b
+
+    return True  # The point is on the segment
+
+spawn_time = 5
+while running:
+    clock.tick(FPS)
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+    if not game_over:
+        current_time = time.time()
+        if current_time - last_ball_spawn_time >= spawn_time:
+            balls.append(Ball([WIDTH // 2, HEIGHT // 2],
+                              [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]))
+            last_ball_spawn_time = current_time
+            spawn_time *= 0.9
+
+        for ball in balls:
+            ball.move()
+            if ball.pos[0] <= BALL_RADIUS or ball.pos[0] >= WIDTH - BALL_RADIUS:
+                ball.bounce()
+            if ball.pos[1] <= BALL_RADIUS or ball.pos[1] >= HEIGHT - BALL_RADIUS:
+                ball.speed[1] = -ball.speed[1]
+                ball.speed = randomize_direction(ball.speed)
+            edges = polygon.get_edges()
+            for i, edge in enumerate(edges):
+                if not polygon.holes[i] and enhanced_collision_detection(ball.pos, edge):
+                    normal = [-(edge[1][1] - edge[0][1]), edge[1][0] - edge[0][0]]
+                    normal_mag = math.hypot(*normal)
+                    normal = [normal[0] / normal_mag, normal[1] / normal_mag]
+                    ball.speed = reflect_velocity(ball.speed, normal)
+                    polygon.holes[i] = True
+                    play_music_segment(bounce_count * 0.15)
+                    bounce_count += 1
+                    break
+
+        if all(polygon.holes):
+            if not show_end_message:
+                show_end_message = True
+                end_message_start_time = time.time()  # Initialize with the current time
+
+        polygon.rotation_angle += ROTATION_SPEED
+
+    screen.fill(BLACK)
+    if not game_over:
+        title_text = font.render("Ball and Circle Game", True, WHITE)
+        screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 100))
+        polygon.draw(screen)
+        for ball in balls:
+            ball.draw(screen)
+        if show_end_message:
+            game_over_texts = [
+                large_font.render("LIKE", True, WHITE),
+                large_font.render("FOLLOW", True, WHITE),
+                large_font.render("SUBSCRIBE", True, WHITE),
+                large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
+            ]
+            for idx, text in enumerate(game_over_texts):
+                screen.blit(text, (WIDTH // 2 - text.get_width() // 2, HEIGHT // 2 - 150 + 100 * idx))
+            if time.time() - end_message_start_time >= 5:
+                game_over = True
+    else:
+        running = False
+
+    frame = pygame.surfarray.array3d(screen).transpose([1, 0, 2])
+    video_writer.append_data(frame)
+    pygame.display.flip()
+
+video_writer.close()
+pygame.quit()
+print("Video with sound saved successfully!")

@@ -103,27 +103,27 @@ class RPSObject:
     def transform(self, other):
         if self.type == ROCK and other.type == SCISSORS:
             other.type = ROCK
-            other.radius *= 1.25
+            other.radius *= 1
             print(f"{self.type} transformed {other.type} into {other.type}")
         elif self.type == SCISSORS and other.type == PAPER:
             other.type = SCISSORS
-            other.radius *= 1.25
+            other.radius *= 1
             print(f"{self.type} transformed {other.type} into {other.type}")
         elif self.type == PAPER and other.type == ROCK:
             other.type = PAPER
-            other.radius *= 1.25
+            other.radius *= 1
             print(f"{self.type} transformed {other.type} into {other.type}")
         elif self.type == SCISSORS and other.type == ROCK:
             self.type = ROCK
-            self.radius *= 1.25
+            self.radius *= 1
             print(f"{other.type} transformed {self.type} into {self.type}")
         elif self.type == PAPER and other.type == SCISSORS:
             self.type = SCISSORS
-            self.radius *= 1.25
+            self.radius *= 1
             print(f"{other.type} transformed {self.type} into {self.type}")
         elif self.type == ROCK and other.type == PAPER:
             self.type = PAPER
-            self.radius *= 1.25
+            self.radius *= 1
             print(f"{other.type} transformed {self.type} into {self.type}")
 
 # Initialize objects

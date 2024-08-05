@@ -3,5 +3,5 @@
   <component name="Black">
     <option name="sdkName" value="Python 3.11 (python_animations)" />
   </component>
-  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.11 (python_animations)" project-jdk-type="Python SDK" />
+  <component name="ProjectRootManager" version="2" project-jdk-name="Python 3.10 (animations_python)" project-jdk-type="Python SDK" />
 </project>
