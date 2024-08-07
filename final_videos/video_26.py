@@ -33,9 +33,7 @@ FPS = 60
 MAX_SPEED = 4  # Maximum initial speed of ball
 TRAIL_LENGTH = 40  # Number of trail segments
 GRAVITY = 0.1  # Gravity effect
-CIRCLE_SHRINK_RATE = 2  # Rate at which circles shrink
 NEW_CIRCLE_INTERVAL = 0.15  # Initial time interval in seconds to add new circle
-MIN_CIRCLE_RADIUS = 5  # Minimum circle radius before disappearing
 SPEED_INCREASE_FACTOR = 1.002  # Factor to increase speed after each bounce
 CIRCLE_CREATION_ACCELERATION = 0.999  # Factor to decrease interval for circle creation after each bounce
 
@@ -64,9 +62,6 @@ class Circle:
     def draw(self, screen):
         if self.radius > 0:
             pygame.draw.circle(screen, self.color, (WIDTH // 2, HEIGHT // 2), self.radius, 5)
-
-    def update(self):
-        self.radius -= CIRCLE_SHRINK_RATE
 
 # Adjusted initial circle radii to fit within the screen
 circles = [Circle(radius, random.choice(CIRCLE_COLORS)) for radius in range(400, 100, -35)]  # Adjusted radii to fit better
@@ -184,7 +179,7 @@ while running:
                 if circle.radius - BALL_RADIUS <= dist <= circle.radius + BALL_RADIUS:
                     normal = [(ball_positions[i][0] - WIDTH // 2) / dist, (ball_positions[i][1] - HEIGHT // 2) / dist]
                     ball_speeds[i] = reflect_velocity(ball_speeds[i], normal)
-                    circles.remove(circle)
+                    circles.remove(circle)  # Vanish the circle instead of shrinking
                     increase_speed(ball_speeds[i])
                     NEW_CIRCLE_INTERVAL *= CIRCLE_CREATION_ACCELERATION  # Decrease interval for circle creation
                     play_music_segment(random.uniform(0, len(music) // 1000 - 0.5))  # Play random segment
@@ -213,9 +208,7 @@ while running:
                 trail_positions[i].pop(0)
 
         # Update circles
-        for circle in circles:
-            circle.update()
-        circles = [circle for circle in circles if circle.radius > MIN_CIRCLE_RADIUS]
+        circles = [circle for circle in circles if circle.radius > 0]
 
         # Add new circle based on current interval if there are circles
         if circles:
