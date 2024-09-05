@@ -53,12 +53,11 @@ pygame.display.set_caption("Triangle with Trailing Effect and Dynamic Size")
 
 # Constants
 FPS = 60
-MAX_SPEED = 4  # Maximum initial speed of triangle
+MAX_SPEED = 5  # Maximum initial speed of triangle
 TRAIL_LENGTH = 0  # Number of trail segments
-GRAVITY = 0.005  # Gravity effect
+GRAVITY = 0.15  # Gravity effect
 TRIANGLE_SIZE_THRESHOLD = 30  # Threshold size for ending the simulation
-SPEED_INCREASE_FACTOR = 1.015  # Factor to increase speed after each bounce
-COOLDOWN_TIME = 0.1  # Cooldown time between collisions in seconds
+SPEED_INCREASE_FACTOR = 1.002  # Factor to increase speed after each bounce
 
 # Colors
 BLACK = (0, 0, 0)
@@ -71,14 +70,13 @@ triangle_size = 300
 triangle_pos = [WIDTH // 2, HEIGHT // 2]
 triangle_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
 triangle_rotation = 0  # Initial rotation angle
-TRIANGLE_change = 0.99
-last_collision_time = 0  # Time of the last collision
+TRIANGLE_change = 0.975
 
 # Trail settings
 trail_positions = []
 
-# List to store hit points and the corresponding vertices
-collision_lines = []
+# List to store hit points on the circle
+hit_points = []
 
 left_hand_index = 0
 right_hand_play_count = 0
@@ -106,13 +104,14 @@ class Circle:
             pygame.draw.circle(screen, color, (WIDTH // 2, HEIGHT // 2), self.radius, 5)
 
 
-# Function to draw lines from the specific vertex to the hit point on the circle
-def draw_lines(screen, collision_lines):
-    for vertex, point in collision_lines:
+# Function to draw lines from the circle to the center of the triangle
+def draw_lines(screen, hit_points, triangle_vertices):
+    for point in hit_points:
         hue = random.random()  # Random hue for each line
         rgb_color = colorsys.hsv_to_rgb(hue, 1.0, 1.0)
         color = (int(rgb_color[0] * 255), int(rgb_color[1] * 255), int(rgb_color[2] * 255))
-        pygame.draw.line(screen, color, vertex, point, 2)
+        for vertex in triangle_vertices:
+            pygame.draw.line(screen, color, point, vertex, 2)
 
 
 circle = Circle(350)
@@ -179,12 +178,6 @@ def reflect_velocity(velocity, normal):
 
 def check_triangle_circle_collision(triangle_vertices, triangle_speed, circle):
     """Check for collision between the triangle's vertices and the circle."""
-    global last_collision_time
-    current_time = time.time()
-
-    if current_time - last_collision_time < COOLDOWN_TIME:
-        return False  # Skip collision check if within cooldown period
-
     circle_center = [WIDTH // 2, HEIGHT // 2]
     collision_occurred = False
 
@@ -208,11 +201,7 @@ def check_triangle_circle_collision(triangle_vertices, triangle_speed, circle):
             # Calculate hit point on the circle
             hit_point_x = circle_center[0] + normal[0] * circle.radius
             hit_point_y = circle_center[1] + normal[1] * circle.radius
-
-            # Store the specific vertex and the corresponding hit point
-            collision_lines.append((vertex, (int(hit_point_x), int(hit_point_y))))
-
-            last_collision_time = current_time  # Update the last collision time
+            hit_points.append((int(hit_point_x), int(hit_point_y)))
 
             break  # Exit after handling one collision to avoid multiple corrections in one frame
 
@@ -268,12 +257,29 @@ while running:
             bounce_count += 1
             triangle_size *= TRIANGLE_change
 
-        # Draw everything
-        screen.fill(BLACK)
+        # Update trail positions
+        trail_positions.append(tuple(triangle_pos))
+        if len(trail_positions) > TRAIL_LENGTH:
+            trail_positions.pop(0)
 
+        # Check if triangle size threshold is met
+        if triangle_size <= TRIANGLE_SIZE_THRESHOLD:
+            show_end_message = True
+            if end_message_start_time is None:
+                end_message_start_time = time.time()
+    else:
+        running = False
+
+    # Draw everything
+    screen.fill(BLACK)
+
+    if not game_over:
         # Draw title and bounce counter
         title_text = font.render("SHRINKING TRIANGLE", True, WHITE)
         screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 100))
+
+        # Draw lines from hit points on the circle to the vertices of the triangle
+        draw_lines(screen, hit_points, triangle_vertices)
 
         # Draw trail
         for i, pos in enumerate(trail_positions):
@@ -286,41 +292,33 @@ while running:
         # Draw triangle
         draw_triangle(screen, triangle_vertices)
 
-        # Draw lines from the specific vertices to their corresponding hit points on the circle
-        draw_lines(screen, collision_lines)
+        # Draw end message if needed
+        if show_end_message:
+            game_over_text1 = large_font.render("LIKE", True, WHITE)
+            game_over_text2 = large_font.render("FOLLOW", True, WHITE)
+            game_over_text3 = large_font.render("SUBSCRIBE", True, WHITE)
+            game_over_text4 = large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
+            screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 250))
+            screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2 - 150))
+            screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 - 50))
+            screen.blit(game_over_text4, (WIDTH // 2 - game_over_text4.get_width() // 2, HEIGHT // 2 + 50))
 
-        # Check if triangle size threshold is met
-        if triangle_size <= TRIANGLE_SIZE_THRESHOLD:
-            show_end_message = True
-            if end_message_start_time is None:
-                end_message_start_time = time.time()
+            # Check if the 5-second period is over
+            if time.time() - end_message_start_time >= 5:
+                game_over = True
+
+        # Add watermark text
+        watermark_font = pygame.font.SysFont(None, 36)
+        watermark_texts = [
+            watermark_font.render("yt:@jbbm_motions", True, GREY),
+            watermark_font.render("tiktok:@jbbm_motions", True, GREY),
+            watermark_font.render("subscribe for more!", True, GREY)
+        ]
+        for idx, text in enumerate(watermark_texts):
+            screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 175 + idx * 30))
+
     else:
         running = False
-
-    # Draw end message if needed
-    if show_end_message:
-        game_over_text1 = large_font.render("LIKE", True, BLACK)
-        game_over_text2 = large_font.render("FOLLOW", True, BLACK)
-        game_over_text3 = large_font.render("SUBSCRIBE", True, BLACK)
-        game_over_text4 = large_font.render("COMMENT WHAT TO DO NEXT", True, BLACK)
-        screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 250))
-        screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2 - 150))
-        screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 - 50))
-        screen.blit(game_over_text4, (WIDTH // 2 - game_over_text4.get_width() // 2, HEIGHT // 2 + 50))
-
-        # Check if the 5-second period is over
-        if time.time() - end_message_start_time >= 5:
-            game_over = True
-
-    # Add watermark text
-    watermark_font = pygame.font.SysFont(None, 36)
-    watermark_texts = [
-        watermark_font.render("yt:@jbbm_motions", True, GREY),
-        watermark_font.render("tiktok:@jbbm_motions", True, GREY),
-        watermark_font.render("subscribe for more!", True, GREY)
-    ]
-    for idx, text in enumerate(watermark_texts):
-        screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 175 + idx * 30))
 
     # Capture the screen for video
     frame = pygame.surfarray.array3d(screen)

@@ -12,9 +12,10 @@ from pydub.generators import Sine
 from moviepy.editor import VideoFileClip, AudioFileClip
 from tqdm import tqdm
 import colorsys
+import io
 
 # Video number
-number = 44
+number = 50
 
 # Directory path
 video_dir = rf'C:\Users\jmask\OneDrive\Pulpit\videos\video_{number}'
@@ -30,6 +31,10 @@ pygame.midi.init()
 midi_out = pygame.midi.Output(0)
 instrument = 0  # Piano
 midi_out.set_instrument(instrument)
+
+# Load MP3 file
+music_path = r'C:\Users\jmask\Downloads\jocofullinterview41.mp3'
+music = AudioSegment.from_mp3(music_path)
 
 # Load MIDI file
 midi_file = mido.MidiFile(r'C:\Users\jmask\Downloads\Gravity Falls - Made Me Realize.mid')
@@ -49,27 +54,30 @@ for track in midi_file.tracks:
 # Create Pygame window
 WIDTH, HEIGHT = 720, 1280  # Adjusted to be divisible by 16
 screen = pygame.display.set_mode((WIDTH, HEIGHT))
-pygame.display.set_caption("Hexagon with Trailing Effect and Dynamic Size")
+pygame.display.set_caption("Rotating Hexagon with Trailing Effect and Dynamic Size")
 
 # Constants
 FPS = 60
 MAX_SPEED = 4  # Maximum initial speed of hexagon
-TRAIL_LENGTH = 1500  # Number of trail segments (infinite in practice)
-GRAVITY = 0.2  # Gravity effect
-HEXAGON_SIZE = 30  # Constant hexagon size
-CIRCLE_RADIUS_THRESHOLD = 300  # Threshold radius for ending the simulation
-CIRCLE_GROWTH_RATE = 1.05  # Growth rate of the circle after each bounce
-SPEED_INCREASE_FACTOR = 1.01  # Factor to increase speed after each bounce
+TRAIL_LENGTH = 50  # Number of trail segments (infinite in practice)
+GRAVITY = 0.25  # Gravity effect
+HEXAGON_SIZE = 10  # Size of the hexagon
+HEXAGON_INCREMENT = 1.015  # Size increment after each bounce
+CIRCLE_RADIUS_THRESHOLD = 320  # Threshold radius for ending the simulation
+CIRCLE_GROWTH_RATE = 1.015  # Growth rate of the circle after each bounce
+SPEED_INCREASE_FACTOR = 1.001  # Factor to increase speed after each bounce
 
 # Colors
 BLACK = (0, 0, 0)
 WHITE = (255, 255, 255)
-TRAIL_COLORS = [(255, 0, 0), (255, 165, 0), (255, 255, 0), (0, 255, 0), (0, 127, 255), (0, 0, 255), (139, 0, 255)]
+TRAIL_COLOR = (255, 0, 0)
 GREY = (35, 35, 35)
 
 # Hexagon settings
 hexagon_pos = [WIDTH // 2, HEIGHT // 2]
 hexagon_speed = [random.choice([-MAX_SPEED, MAX_SPEED]), random.choice([-MAX_SPEED, MAX_SPEED])]
+hexagon_rotation = 0  # Initial rotation angle
+hexagon_rotation_speed = 0.05  # Initial rotation speed
 
 # Trail settings
 trail_positions = []
@@ -103,58 +111,52 @@ class Circle:
 
 circle = Circle(50)  # Starting radius smaller to allow for growth
 
-def randomize_direction(hexagon_speed):
+def randomize_direction(speed):
     angle = random.uniform(-math.pi / 6, math.pi / 6)  # Random angle between -30 and 30 degrees
-    speed = math.hypot(hexagon_speed[0], hexagon_speed[1])  # Current speed magnitude
-    new_angle = math.atan2(hexagon_speed[1], hexagon_speed[0]) + angle
-    hexagon_speed[0] = speed * math.cos(new_angle)
-    hexagon_speed[1] = speed * math.sin(new_angle)
+    speed_magnitude = math.hypot(speed[0], speed[1])  # Current speed magnitude
+    new_angle = math.atan2(speed[1], speed[0]) + angle
+    speed[0] = speed_magnitude * math.cos(new_angle)
+    speed[1] = speed_magnitude * math.sin(new_angle)
 
-def increase_speed(hexagon_speed):
-    hexagon_speed[0] *= SPEED_INCREASE_FACTOR
-    hexagon_speed[1] *= SPEED_INCREASE_FACTOR
+def increase_speed(speed):
+    speed[0] *= SPEED_INCREASE_FACTOR
+    speed[1] *= SPEED_INCREASE_FACTOR
 
-def play_note_thread(note, duration=0.2):
-    midi_out.note_on(note, 127)
-    note_sound = Sine(note * 8).to_audio_segment(duration=int(duration * 1000))
-    audio_segments.append((note_sound, time.time()))  # Append note sound and the current time
-    time.sleep(duration)  # Play the note for 100 ms
-    midi_out.note_off(note, 127)
+def play_music_segment(start_time, duration=0.33):
+    segment = music[start_time * 1000:start_time * 1000 + duration * 1000]
+    audio_segments.append((segment, time.time()))
 
-def play_piano_notes():
-    global left_hand_index, right_hand_play_count
-
-    # Play right hand note
-    if right_hand_notes:
-        right_note = random.choice(right_hand_notes)
-        threading.Thread(target=play_note_thread, args=(right_note,)).start()
-
-    # Play left hand note every second bounce
-    right_hand_play_count += 1
-    if right_hand_play_count % 2 == 0 and left_hand_notes:
-        left_note = left_hand_notes[left_hand_index]
-        threading.Thread(target=play_note_thread, args=(left_note,)).start()
-        left_hand_index = (left_hand_index + 1) % len(left_hand_notes)
+    with io.BytesIO() as f:
+        segment.export(f, format="wav")
+        f.seek(0)
+        pygame.mixer.Sound(f).play()
 
 def reflect_velocity(velocity, normal):
     dot_product = velocity[0] * normal[0] + velocity[1] * normal[1]
     return [velocity[0] - 2 * dot_product * normal[0], velocity[1] - 2 * dot_product * normal[1]]
 
-def check_hexagon_circle_collision(hexagon_pos, hexagon_speed, hexagon_size, circle):
+def check_hexagon_circle_collision(pos, speed, size, circle):
     circle_center = [WIDTH // 2, HEIGHT // 2]
-    distance = math.hypot(hexagon_pos[0] - circle_center[0], hexagon_pos[1] - circle_center[1])
-    if distance + hexagon_size >= circle.radius:
-        overlap = distance + hexagon_size - circle.radius
-        normal = [(hexagon_pos[0] - circle_center[0]) / distance, (hexagon_pos[1] - circle_center[1]) / distance]
-        hexagon_pos[0] -= normal[0] * overlap  # Move hexagon out of collision
-        hexagon_pos[1] -= normal[1] * overlap  # Move hexagon out of collision
-        hexagon_speed[:] = reflect_velocity(hexagon_speed, normal)
-        randomize_direction(hexagon_speed)
-        increase_speed(hexagon_speed)
-        play_piano_notes()
-        circle.increase_size()  # Increase the circle size on collision
+    distance = math.hypot(pos[0] - circle_center[0], pos[1] - circle_center[1])
+    if distance + size >= circle.radius:
+        overlap = distance + size - circle.radius
+        normal = [(pos[0] - circle_center[0]) / distance, (pos[1] - circle_center[1]) / distance]
+        pos[0] -= normal[0] * overlap  # Move hexagon out of collision
+        pos[1] -= normal[1] * overlap  # Move hexagon out of collision
+        speed[:] = reflect_velocity(speed, normal)
+        randomize_direction(speed)
+        increase_speed(speed)
         return True
     return False
+
+def draw_hexagon(surface, color, position, size, angle, thickness=1):
+    angle_offset = math.pi / 6  # Start angle for hexagon vertices
+    points = [
+        (position[0] + size * math.cos(angle + angle_offset + i * math.pi / 3),
+         position[1] + size * math.sin(angle + angle_offset + i * math.pi / 3))
+        for i in range(6)
+    ]
+    pygame.draw.polygon(surface, color, points, thickness)  # Draw only the edges of the hexagon
 
 # Initialize font
 font = pygame.font.SysFont(None, 48)
@@ -167,17 +169,6 @@ video_writer = imageio.get_writer(os.path.join(video_dir, f'{number}_hexagon_in_
 running = True
 clock = pygame.time.Clock()
 start_time = time.time()
-
-def draw_hexagon(surface, color, position, size):
-    angle_offset = math.pi / 6  # Start from a pointy edge
-    points = [
-        (
-            position[0] + size * math.cos(angle_offset + i * 2 * math.pi / 6),
-            position[1] + size * math.sin(angle_offset + i * 2 * math.pi / 6)
-        )
-        for i in range(6)
-    ]
-    pygame.draw.polygon(surface, color, points)
 
 while running:
     clock.tick(FPS)
@@ -192,25 +183,37 @@ while running:
         hexagon_pos[0] += hexagon_speed[0]
         hexagon_pos[1] += hexagon_speed[1]
 
+        # Update hexagon rotation
+        hexagon_rotation += hexagon_rotation_speed
+
         # Hexagon collision with walls
-        if (hexagon_pos[0] - HEXAGON_SIZE <= 0 or hexagon_pos[0] + HEXAGON_SIZE >= WIDTH) and not show_end_message:
+        if (hexagon_pos[0] - HEXAGON_SIZE <= 0 or hexagon_pos[0] + HEXAGON_SIZE >= WIDTH):
             hexagon_speed[0] = -hexagon_speed[0]
             randomize_direction(hexagon_speed)
-            play_piano_notes()  # Play piano notes on bounce
+            HEXAGON_SIZE *= HEXAGON_INCREMENT
+            hexagon_rotation_speed = -hexagon_rotation_speed * random.uniform(0.8, 1.2)
+            play_music_segment(bounce_count * 0.33)
             bounce_count += 1
 
-        if (hexagon_pos[1] - HEXAGON_SIZE <= 0 or hexagon_pos[1] + HEXAGON_SIZE >= HEIGHT) and not show_end_message:
+        if (hexagon_pos[1] - HEXAGON_SIZE <= 0 or hexagon_pos[1] + HEXAGON_SIZE >= HEIGHT):
             hexagon_speed[1] = -hexagon_speed[1]
             randomize_direction(hexagon_speed)
-            play_piano_notes()  # Play piano notes on bounce
+            HEXAGON_SIZE *= HEXAGON_INCREMENT
+            hexagon_rotation_speed = -hexagon_rotation_speed * random.uniform(0.8, 1.2)
+            play_music_segment(bounce_count * 0.33)
             bounce_count += 1
 
         # Hexagon collision with circle
-        if (check_hexagon_circle_collision(hexagon_pos, hexagon_speed, HEXAGON_SIZE, circle)) and not show_end_message:
+        if (check_hexagon_circle_collision(hexagon_pos, hexagon_speed, HEXAGON_SIZE, circle)):
+            bounce_count += 1
+            hexagon_rotation_speed = -hexagon_rotation_speed * random.uniform(0.8, 1.2)
+            circle.increase_size()  # Increase the circle size on collision
+            play_music_segment(bounce_count * 0.33)
+            HEXAGON_SIZE *= HEXAGON_INCREMENT
             bounce_count += 1
 
         # Update trail positions
-        trail_positions.append(tuple(hexagon_pos))
+        trail_positions.append((tuple(hexagon_pos), hexagon_rotation))
         if len(trail_positions) > TRAIL_LENGTH:
             trail_positions.pop(0)
 
@@ -225,26 +228,26 @@ while running:
 
     if not game_over:
         # Draw title and bounce counter
-        title_text = font.render("WAIT TILL THE END!", True, WHITE)
+        title_text = font.render("HEXAGON!", True, WHITE)
         screen.blit(title_text, (WIDTH // 2 - title_text.get_width() // 2, 100))
 
-        # Draw trail with changing colors
-        for i, pos in enumerate(trail_positions):
-            color = TRAIL_COLORS[i % len(TRAIL_COLORS)]
-            draw_hexagon(screen, color, pos, HEXAGON_SIZE - (i * HEXAGON_SIZE // TRAIL_LENGTH))
+        # Draw trail with fixed color
+        for i, (pos, angle) in enumerate(trail_positions):
+            # Draw hexagon trail edges only with decreasing size for tail effect
+            draw_hexagon(screen, TRAIL_COLOR, pos, HEXAGON_SIZE - i * 0.02, angle, thickness=2)
 
         # Draw circle
         circle.draw(screen)
 
         # Draw hexagon
-        draw_hexagon(screen, WHITE, hexagon_pos, HEXAGON_SIZE)
+        draw_hexagon(screen, WHITE, hexagon_pos, HEXAGON_SIZE, hexagon_rotation, thickness=2)
 
         # Draw end message if needed
         if show_end_message:
-            game_over_text1 = large_font.render("LIKE", True, BLACK)
-            game_over_text2 = large_font.render("FOLLOW", True, BLACK)
-            game_over_text3 = large_font.render("SUBSCRIBE", True, BLACK)
-            game_over_text4 = large_font.render("COMMENT WHAT TO DO NEXT", True, BLACK)
+            game_over_text1 = large_font.render("LIKE", True, WHITE)
+            game_over_text2 = large_font.render("FOLLOW", True, WHITE)
+            game_over_text3 = large_font.render("SUBSCRIBE", True, WHITE)
+            game_over_text4 = large_font.render("COMMENT WHAT TO DO NEXT", True, WHITE)
             screen.blit(game_over_text1, (WIDTH // 2 - game_over_text1.get_width() // 2, HEIGHT // 2 - 250))
             screen.blit(game_over_text2, (WIDTH // 2 - game_over_text2.get_width() // 2, HEIGHT // 2 - 150))
             screen.blit(game_over_text3, (WIDTH // 2 - game_over_text3.get_width() // 2, HEIGHT // 2 - 50))
@@ -274,33 +277,6 @@ while running:
 
 print('capturing video')
 
-# Close the video writer
 video_writer.close()
-
-# Concatenate all audio segments
-final_audio = AudioSegment.silent(duration=0)
-game_duration = time.time() - start_time
-
-for segment, timestamp in tqdm(audio_segments):
-    silence_duration = (timestamp - start_time) * 1000  # Convert to milliseconds
-    final_audio += AudioSegment.silent(duration=silence_duration - len(final_audio))
-    final_audio += segment
-
-# Ensure the final audio is exactly the same length as the video duration
-final_audio = final_audio[:int(game_duration * 1000)]
-
-# Save the audio to a file
-final_audio.export(os.path.join(video_dir, f'{number}_hexagon_competition_sound.mp3'), format="mp3")
-
-# Close the MIDI output
-midi_out.close()
-pygame.midi.quit()
 pygame.quit()
 
-# Combine video and audio
-video_clip = VideoFileClip(os.path.join(video_dir, f'{number}_hexagon_in_circle_sound.mp4'))
-audio_clip = AudioFileClip(os.path.join(video_dir, f'{number}_hexagon_competition_sound.mp3'))
-final_clip = video_clip.set_audio(audio_clip)
-final_clip.write_videofile(os.path.join(video_dir, f'{number}_final_output.mp4'), codec='libx264')
-
-print("Video with sound saved successfully!")
