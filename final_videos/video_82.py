@@ -320,9 +320,9 @@ while running:
 
         watermark_font = pygame.font.SysFont(None, 36)
         watermark_texts = [
-            watermark_font.render("yt:@jbbm_motions", True, GREY),
-            watermark_font.render("tiktok:@jbbm_motions", True, GREY),
-            watermark_font.render("subscribe for more!", True, GREY)
+            watermark_font.render("yt:@jbbm_motions", True, (50, 50, 50)),
+            watermark_font.render("tiktok:@jbbm_motions", True, (50, 50, 50)),
+            watermark_font.render("subscribe for more!", True, (50, 50, 50))
         ]
         for idx, text in enumerate(watermark_texts):
             screen.blit(text, (WIDTH // 2 - text.get_width() // 2, 1050 + idx * 30))
